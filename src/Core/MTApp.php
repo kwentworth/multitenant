@@ -27,6 +27,33 @@ class MTApp {
   }
 
   protected static $_cachedAccounts = [];
+  protected static $_configConsumed = false;
+  
+  public static function config($key, $config = null) {
+      if(!static::$_configConsumed) {
+          static::setConfig(\Cake\Core\Configure::read('MultiTenant'));
+          static::$_configConsumed = true;
+      }
+      
+      if ($config !== null || is_array($key)) {
+          static::setConfig($key, $config);
+          
+          return null;
+      }
+      
+      return static::getConfig($key);
+  }
+  
+  /**
+   * Reads existing configuration.
+   *
+   * @param string $key The name of the configuration.
+   * @return array|null Array of configuration data.
+   */
+  public static function getConfig($key)
+  {
+      return isset(static::$_config[$key]) ? static::$_config[$key] : null;
+  }
 
 
  /**
@@ -128,6 +155,7 @@ class MTApp {
   
   } 
   protected static function _getTenantQualifier() {
+
     //for domain this is the SERVER_NAME from $_SERVER
     if ( self::config('strategy') == 'domain' ) {
 
@@ -138,6 +166,9 @@ class MTApp {
         return '';
       }
     }
-
+    
+    if( self::config('strategy') == 'accountUsername' and \Cake\Routing\Router::getRequest() ) {
+        return \Cake\Routing\Router::getRequest()->getParam('account');
+    }
   }
 }
