@@ -28,6 +28,7 @@ class MTApp {
 
   protected static $_cachedAccounts = [];
   protected static $_configConsumed = false;
+  protected static $_forceGlobalContext = false;    // true will make MTApp behave in global context, even from tenant context
   
   public static function config($key, $config = null) {
       if(!static::$_configConsumed) {
@@ -53,6 +54,22 @@ class MTApp {
   public static function getConfig($key)
   {
       return isset(static::$_config[$key]) ? static::$_config[$key] : null;
+  }
+  
+  /**
+   * Force global context
+   */
+  public static function forceGlobal()
+  {
+      self::$_forceGlobalContext = true;
+  }
+  
+  /**
+   * Resume normal context
+   */
+  public static function resumeNormal()
+  {
+      self::$_forceGlobalContext = false;
   }
 
 
@@ -155,6 +172,10 @@ class MTApp {
   
   } 
   protected static function _getTenantQualifier() {
+      
+    if(self::$_forceGlobalContext) {
+        return '';  // forcing global context
+    }
 
     //for domain this is the SERVER_NAME from $_SERVER
     if ( self::config('strategy') == 'domain' ) {
@@ -168,7 +189,12 @@ class MTApp {
     }
     
     if( self::config('strategy') == 'accountUsername' and \Cake\Routing\Router::getRequest() ) {
-        return \Cake\Routing\Router::getRequest()->getParam('account');
+        $account = \Cake\Routing\Router::getRequest()->getParam('account');
+        if(!$account) {
+            $account = '';
+        }
+        
+        return $account;
     }
   }
 }
