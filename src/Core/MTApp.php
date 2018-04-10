@@ -18,6 +18,8 @@ namespace MultiTenant\Core;
 use Cake\Core\StaticConfigTrait;
 use Cake\Core\Exception\Exception;
 use Cake\ORM\TableRegistry;
+use Cake\Core\Configure;
+use Cake\Network\Session;
 
 //TODO Implement Singleton/Caching to eliminate sql query on every call
 class MTApp {
@@ -29,6 +31,8 @@ class MTApp {
   protected static $_cachedAccounts = [];
   protected static $_configConsumed = false;
   protected static $_forceGlobalContext = false;    // true will make MTApp behave in global context, even from tenant context
+  protected static $_forceTenantId = false;         // set to id of tenant to force during saving
+  protected static $_isSuperTenant = false;           // when in the super user context... need to track this so we always return super tenant (because we are setting _forceTenantId on first run; subsequent runs need to know to ignore) 
   
   public static function config($key, $config = null) {
       if(!static::$_configConsumed) {
@@ -71,6 +75,22 @@ class MTApp {
   {
       self::$_forceGlobalContext = false;
   }
+  
+  /**
+   * Force tenant id - used when not in tenant context, but want to force account_id = tenant->id
+   */
+  public static function forceTenantId($id)
+  {
+      self::$_forceTenantId = $id;
+  }
+  
+  /**
+   * Resume normal context
+   */
+  public static function stopForceTenantId()
+  {
+      self::$_forceTenantId = false;
+  }
 
 
  /**
@@ -80,6 +100,11 @@ class MTApp {
   *
   */
   public static function getContext() {
+    // check for forced tenant id
+    if(self::$_forceTenantId !== false) {
+        return 'tenant';
+    }
+      
     //get tenant qualifier
     $qualifier = self::_getTenantQualifier();
     
@@ -95,6 +120,11 @@ class MTApp {
   *
   */
   public static function isPrimary() {
+    // check for forced tenant id
+    if(self::$_forceTenantId !== false) {
+        return false;
+    }
+      
     //get tenant qualifier
     $qualifier = self::_getTenantQualifier();
     
@@ -117,8 +147,14 @@ class MTApp {
     if ( self::isPrimary() ) {
       throw new Exception('MTApp::tenant() cannot be called from primaryDomain context');
     }
-
-    $tenant =  static::_findTenant();
+    
+    // check for forced tenant id
+    if(self::$_forceTenantId !== false and !self::$_isSuperTenant) {
+        $tenant = new \stdClass();  // mock object
+        $tenant->id = self::$_forceTenantId;
+    } else {
+        $tenant =  static::_findTenant();
+    }
 
     //Check for inactive/nonexistant domain
     if ( !$tenant ) {
@@ -140,9 +176,17 @@ class MTApp {
     //get tenant qualifier
     $qualifier = self::_getTenantQualifier();
     
+    // see if we are dealing with a super user account
+    if($qualifier == 'super') {        
+        $tenant = new \stdClass();  // mock object
+        $tenant->id = self::$_forceTenantId;
+        $tenant->username = 'super';
+        self::$_cachedAccounts[$qualifier] = $tenant;
+    }
+    
     //Read entity from cache if it exists
     if ( array_key_exists($qualifier, self::$_cachedAccounts)) {
-      return self::$_cachedAccounts[$qualifier];
+        return self::$_cachedAccounts[$qualifier];
     }
 
     //load model
@@ -158,7 +202,10 @@ class MTApp {
   } 
 
   public static function redirectInactive() {
-
+      
+      //if(Configure::read('Avenger.request')) {
+         //  return;
+    //  }
     $uri = self::config('redirectInactive');
 
     if(strpos($uri, 'http') !== false) {
@@ -166,13 +213,23 @@ class MTApp {
     } else {
       $full_uri = env('REQUEST_SCHEME') .'://' . self::config('primaryDomain') . $uri;
     }
-  
+    
     header( 'Location: ' . $full_uri );
     exit;
   
   } 
-  protected static function _getTenantQualifier() {
+  
+  protected static function _getUserSession() {
+      $session = new Session();
       
+      if($session->check('Auth.User')) {
+          return $session->read('Auth.User');
+      }
+      
+      return false;
+  }
+  
+  protected static function _getTenantQualifier() {
     if(self::$_forceGlobalContext) {
         return '';  // forcing global context
     }
@@ -189,8 +246,16 @@ class MTApp {
     }
     
     if( self::config('strategy') == 'accountUsername' and \Cake\Routing\Router::getRequest() ) {
+        
         $account = \Cake\Routing\Router::getRequest()->getParam('account');
-        if(!$account) {
+        if($account) {
+            // see if we are dealing with a super user account
+            if($account == 'super') {
+                // @todo check permissions for this level of access
+                self::$_forceTenantId = 0;  // forcing this to use the global tenant id
+                self::$_isSuperTenant = true;   // so we know that we are in super context
+            }
+        } else {            
             $account = '';
         }
         
