@@ -175,6 +175,7 @@ class MTApp {
     
     //get tenant qualifier
     $qualifier = self::_getTenantQualifier();
+   
     
     // see if we are dealing with a super user account
     if($qualifier == 'super') {        
@@ -193,7 +194,7 @@ class MTApp {
     $modelConf= self::config('model');
     $tbl = TableRegistry::get( $modelConf['className'] );
     $conditions = array_merge([$modelConf['field']=>$qualifier], $modelConf['conditions']);
-
+    
     //Query model and store in cache
     self::$_cachedAccounts[$qualifier] = $tbl->find('all', ['skipTenantCheck' => true])->where($conditions)->first();
 
@@ -203,9 +204,9 @@ class MTApp {
 
   public static function redirectInactive() {
       
-      //if(Configure::read('Avenger.request')) {
-         //  return;
-    //  }
+      if(Configure::read('Avenger.request')) {
+           //return;
+      }
     $uri = self::config('redirectInactive');
 
     if(strpos($uri, 'http') !== false) {
@@ -217,16 +218,6 @@ class MTApp {
     header( 'Location: ' . $full_uri );
     exit;
   
-  } 
-  
-  protected static function _getUserSession() {
-      $session = new Session();
-      
-      if($session->check('Auth.User')) {
-          return $session->read('Auth.User');
-      }
-      
-      return false;
   }
   
   protected static function _getTenantQualifier() {
