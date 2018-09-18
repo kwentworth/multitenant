@@ -160,7 +160,7 @@ class MTApp {
     if ( !$tenant ) {
       self::redirectInactive();
     }
-
+    
     return $tenant;
 
   }
@@ -224,10 +224,26 @@ class MTApp {
     if(self::$_forceGlobalContext) {
         return '';  // forcing global context
     }
+    
+    $isAvengerRequest = false;
+    $uri = rtrim(parse_url(env('REQUEST_URI'), PHP_URL_PATH), '/');
+    if(stripos($uri, '/'.AVENGER_PREFIX) === 0) {
+        $isAvengerRequest = true;   // avenger side
+    }
+    
+    if ( self::config('multisite') ) {
+        // see if we are on the primarySite, if so, we are global
+        if(env('HTTP_HOST', false) == self::config('primarySite')) {
+            return 'primary';  // global context on primary site (this is where you control other sites)
+        } else if (env('HTTP_HOST', false) == self::config('adminSite')) {
+            return '';  // global context on primary site (this is where you control other sites)
+        } else {
+            // all others will be handled like subdomain
+        }
+    }    
 
     //for domain this is the SERVER_NAME from $_SERVER
     if ( self::config('strategy') == 'domain' ) {
-
       // check if tenant is available and server name valid
       if (substr_count(env('SERVER_NAME'), self::config('primaryDomain')) > 0 && substr_count(env('SERVER_NAME'), '.') > 1) {
         return str_replace('.' . self::config('primaryDomain'), '', env('SERVER_NAME'));
