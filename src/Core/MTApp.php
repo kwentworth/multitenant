@@ -33,6 +33,8 @@ class MTApp {
   protected static $_forceGlobalContext = false;    // true will make MTApp behave in global context, even from tenant context
   protected static $_forceTenantId = false;         // set to id of tenant to force during saving
   protected static $_isSuperTenant = false;           // when in the super user context... need to track this so we always return super tenant (because we are setting _forceTenantId on first run; subsequent runs need to know to ignore) 
+  protected static $_doFullLookup = false;          // true when we are doing a full lookup
+  protected static $_cachedFullAccounts = [];       // stores the full version of the account
   
   public static function config($key, $config = null) {
       if(!static::$_configConsumed) {
@@ -164,6 +166,21 @@ class MTApp {
     return $tenant;
 
   }
+  
+  /**
+   *
+   * Can be used throughout Application to resolve current tenant, with full item record details
+   * Returns tenant entity
+   *
+   * @returns Cake\ORM\Entity
+   */
+  public static function tenantFull( ) {
+      self::$_doFullLookup = true;
+      $tenant = self::tenant();
+      self::$_doFullLookup = false;
+      
+      return $tenant;
+  }
 
   
   protected static function _findTenant() {
@@ -185,11 +202,12 @@ class MTApp {
         self::$_cachedAccounts[$qualifier] = $tenant;
     }
     
+    
     //Read entity from cache if it exists
-    if ( array_key_exists($qualifier, self::$_cachedAccounts)) {
+    if ( array_key_exists($qualifier, self::$_cachedAccounts) and !self::$_doFullLookup) {
         return self::$_cachedAccounts[$qualifier];
     }
-
+    
     //load model
     $modelConf= self::config('model');
     $tbl = TableRegistry::get( $modelConf['className'] );
@@ -197,8 +215,38 @@ class MTApp {
     
     //Query model and store in cache
     self::$_cachedAccounts[$qualifier] = $tbl->find('all', ['skipTenantCheck' => true])->where($conditions)->first();
-
+    
+    
+    
+    
+    
+    if(self::$_doFullLookup) {
+        
+        
+        
+        //Read entity from cache if it exists
+        if ( array_key_exists($qualifier, self::$_cachedFullAccounts)) {
+            return self::$_cachedFullAccounts[$qualifier];
+        }
+        
+        self::$_forceGlobalContext = true;
+        //load model
+        $modelConf= self::config('model');
+        $tbl = TableRegistry::get( $modelConf['className'] );
+        
+        //Query model and store in cache
+        self::$_cachedFullAccounts[$qualifier] = $tbl->getAccount($qualifier);
+        
+        self::$_forceGlobalContext = false;
+        
+        return self::$_cachedFullAccounts[$qualifier];
+        
+    }
+    
+    
     return self::$_cachedAccounts[$qualifier];
+
+    
   
   } 
 
