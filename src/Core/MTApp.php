@@ -250,7 +250,7 @@ class MTApp {
   
   } 
 
-  public static function redirectInactive() {
+  public static function redirectInactive($status = 302) {
       
       if(Configure::read('Avenger.request')) {
            //return;
@@ -263,7 +263,7 @@ class MTApp {
       $full_uri = env('REQUEST_SCHEME') .'://' . self::config('primaryDomain') . $uri;
     }
     
-    header( 'Location: ' . $full_uri );
+    header( 'Location: ' . $full_uri, true, $status);
     exit;
   
   }
@@ -287,6 +287,12 @@ class MTApp {
             return '';  // global context on primary site (this is where you control other sites)
         } else {
             // all others will be handled like subdomain
+            if (substr_count(env('SERVER_NAME'), self::config('primaryDomain')) > 0 && substr_count(env('SERVER_NAME'), '.') > 1) {
+                return str_replace('.' . self::config('primaryDomain'), '', env('SERVER_NAME'));
+            } else {
+                // no subdomain isn't allowed
+                self::redirectInactive(301);
+            }
         }
     }    
 
