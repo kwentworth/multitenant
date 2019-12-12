@@ -266,9 +266,8 @@ class MTApp {
       $full_uri = $uri;
       
       if($keepUri) {
-          // try to redirect to the exact same page on the primary domain
-          $full_uri .= $_SERVER['REQUEST_URI'];
-          $full_uri = str_replace('//', '/', $full_uri);
+          // try to redirect to the exact same page on the primary domain... avoiding duplicate slashes
+          $full_uri = rtrim($full_uri, '/') . $_SERVER['REQUEST_URI'];
       }
     } else {
       $full_uri = env('REQUEST_SCHEME') .'://' . self::config('primaryDomain') . $uri;
