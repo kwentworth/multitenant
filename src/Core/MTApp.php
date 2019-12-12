@@ -250,7 +250,12 @@ class MTApp {
   
   } 
 
-  public static function redirectInactive($status = 302) {
+  /**
+   * 
+   * @param integer $status Redirect status to send
+   * @param boolean $keepUrl If true, then will attempt to redirect to same page (used for non-www. requests to redirect to www.blah.com/url)
+   */
+  public static function redirectInactive($status = 302, $keepUri = false) {
       
       if(Configure::read('Avenger.request')) {
            //return;
@@ -259,6 +264,12 @@ class MTApp {
 
     if(strpos($uri, 'http') !== false) {
       $full_uri = $uri;
+      
+      if($keepUri) {
+          // try to redirect to the exact same page on the primary domain
+          $full_uri .= $_SERVER['REQUEST_URI'];
+          $full_uri = str_replace('//', '/', $full_uri);
+      }
     } else {
       $full_uri = env('REQUEST_SCHEME') .'://' . self::config('primaryDomain') . $uri;
     }
@@ -290,8 +301,8 @@ class MTApp {
             if (substr_count(env('SERVER_NAME'), self::config('primaryDomain')) > 0 && substr_count(env('SERVER_NAME'), '.') > 1) {
                 return str_replace('.' . self::config('primaryDomain'), '', env('SERVER_NAME'));
             } else {
-                // no subdomain isn't allowed
-                self::redirectInactive(301);
+                // no subdomain isn't allowed... attempt to redirect to primary (www) domain, keeping the current uri
+                self::redirectInactive(301, true);
             }
         }
     }    
